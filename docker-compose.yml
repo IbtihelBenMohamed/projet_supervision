@@ -1,0 +1,138 @@
+version: '3.8'
+
+networks:
+  supervision_net:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+
+services:
+
+  # ============================================================
+  # PROMETHEUS — collecte des metriques
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # GRAFANA — dashboard de visualisation
+  # ============================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # NODE EXPORTER — metriques systeme (CPU, RAM, disque)
+  # ============================================================
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # ELASTICSEARCH — stockage et indexation des logs
+  # ============================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - "bootstrap.memory_lock=true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # LOGSTASH — ingestion et parsing des logs
+  # ============================================================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.12.0
+    container_name: logstash
+    restart: unless-stopped
+    ports:
+      - "5044:5044"
+      - "5000:5000/udp"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    depends_on:
+      - elasticsearch
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # KIBANA — visualisation des logs ELK
+  # ============================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: kibana
+    restart: unless-stopped
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+    networks:
+      - supervision_net
+
+  # ============================================================
+  # SIMULATEUR PYTHON — generateur de KPIs telecom
+  # ============================================================
+  telecom_simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: telecom_simulator
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - prometheus
+      - logstash
+    networks:
+      - supervision_net

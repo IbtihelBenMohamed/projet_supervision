@@ -1,0 +1,54 @@
+global:
+  scrape_interval: 15s        # collecte toutes les 15 secondes
+  evaluation_interval: 15s    # evaluation des alertes toutes les 15s
+  scrape_timeout: 10s
+
+# ============================================================
+# REGLES D'ALERTES
+# ============================================================
+rule_files:
+  - "alerts.yml"
+
+# ============================================================
+# ALERTMANAGER (optionnel — notifications email/Slack)
+# ============================================================
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# ============================================================
+# CIBLES DE SCRAPING
+# ============================================================
+scrape_configs:
+
+  # Prometheus lui-meme
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Metriques systeme (CPU, RAM, disque, reseau)
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node_exporter:9100']
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'serveur_supervision'
+
+  # Simulateur KPIs telecom 4G/5G
+  - job_name: 'telecom_simulator'
+    static_configs:
+      - targets: ['telecom_simulator:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s    # plus frequent pour les KPIs temps reel
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'reseau_telecom'
+
+  # Grafana (metriques internes)
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    metrics_path: '/metrics'

@@ -1,0 +1,63 @@
+groups:
+  - name: telecom_alerts
+    rules:
+
+      # Alerte latence elevee
+      - alert: LatenceElevee
+        expr: telecom_latence_ms > 150
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence elevee detectee"
+          description: "La latence reseau depasse 150ms depuis plus d'1 minute (valeur: {{ $value }}ms)"
+
+      # Alerte latence critique
+      - alert: LatenceCritique
+        expr: telecom_latence_ms > 300
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRITIQUE — Latence tres elevee"
+          description: "La latence reseau depasse 300ms (valeur: {{ $value }}ms)"
+
+      # Alerte debit faible
+      - alert: DebitFaible
+        expr: telecom_debit_dl_mbps < 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Debit descendant faible"
+          description: "Le debit DL est inferieur a 5 Mbps depuis 2 minutes (valeur: {{ $value }} Mbps)"
+
+      # Alerte disponibilite reseau
+      - alert: ReseauIndisponible
+        expr: telecom_disponibilite_pct < 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disponibilite reseau critique"
+          description: "La disponibilite reseau est tombee sous 95% (valeur: {{ $value }}%)"
+
+      # Alerte CPU serveur
+      - alert: CPUEleve
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Charge CPU elevee"
+          description: "L'utilisation CPU depasse 85% depuis 2 minutes"
+
+      # Alerte memoire
+      - alert: MemoireElevee
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memoire saturee"
+          description: "L'utilisation memoire depasse 90%"
